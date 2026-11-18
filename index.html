@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SEC Document Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--text:#16213a;--muted:#5d6a85;--line:#d5dbe8;--accent:#1f5fd6;--accent-text:#fff;--err:#c0262d;--ok:#1b7f45;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1524;--card:#18203a;--text:#e8ecf8;--muted:#9aa6c4;--line:#2c3759;--accent:#5b8dff;--accent-text:#0b1020;--err:#ff7b80;--ok:#5fd08d}}
+:root[data-theme="dark"]{--bg:#0f1524;--card:#18203a;--text:#e8ecf8;--muted:#9aa6c4;--line:#2c3759;--accent:#5b8dff;--accent-text:#0b1020;--err:#ff7b80;--ok:#5fd08d}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Telugu",sans-serif;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 22px}
+h1{font-size:1.25rem;margin:0 0 4px}
+p.sub{margin:0 0 22px;color:var(--muted);font-size:.92rem;line-height:1.5}
+label{display:block;font-size:.85rem;font-weight:600;margin:14px 0 6px}
+input{width:100%;padding:12px 14px;font-size:1rem;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);text-transform:uppercase}
+input:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{margin-top:22px;width:100%;padding:14px;font-size:1rem;font-weight:700;border:0;border-radius:10px;background:var(--accent);color:var(--accent-text);cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+#msg{min-height:1.3em;margin:14px 0 0;font-size:.9rem}
+#msg.err{color:var(--err)}#msg.ok{color:var(--ok)}
+.note{margin-top:18px;font-size:.78rem;color:var(--muted);line-height:1.5}
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>SOC Document Generator</h1>
+  <p class="sub">Enter your name and roll number then your customized Cover, Certificate, Declaration, Acknowledgement pages‌ will automatically generate.</p>
+  <label for="name">Name</label>
+  <input id="name" type="text" autocomplete="name" placeholder="e.g  M.ESWAR ARJUN " maxlength="40">
+  <label for="roll">Roll Number</label>
+  <input id="roll" type="text" autocomplete="off" placeholder="e.g. 25JR1A1249" maxlength="15">
+  <button id="go" type="button">Generate PDF</button>
+  <p id="msg" role="status"></p>
+  <p class="note">click on generate and see your file with your name.</p>
+</main>
+<script>
+const TEMPLATE_URL = "template.pdf";
+const H = 792, RED = [0.933, 0, 0];
+const $ = id => document.getElementById(id);
+
+function setMsg(t, c){ const m = $("msg"); m.textContent = t; m.className = c || ""; }
+
+async function loadTemplate(){
+  const r = await fetch(TEMPLATE_URL);
+  if (!r.ok) throw new Error("template.pdf not found");
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+async function build(name, roll){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const doc = await PDFDocument.load(await loadTemplate());
+  const tr = await doc.embedFont(StandardFonts.TimesRoman);
+  const tb = await doc.embedFont(StandardFonts.TimesRomanBold);
+  const pg = doc.getPages();
+  const S = 11.2;
+
+  // Page 1: cover (left aligned)
+  pg[0].drawText(name, { x: 362.2, y: H - 481, size: S, font: tr });
+  pg[0].drawText(roll, { x: 362.1, y: H - 493.9, size: S, font: tr });
+
+  // Pages 5 and 6: declaration, acknowledgement (centered, bold)
+  [[4, 524.5, 551.3], [5, 629.4, 656.2]].forEach(([i, y1, y2]) => {
+    const r = "(" + roll + ")";
+    pg[i].drawText(name, { x: 425.7 - tb.widthOfTextAtSize(name, S) / 2, y: H - y1, size: S, font: tb });
+    pg[i].drawText(r, { x: 427 - tb.widthOfTextAtSize(r, S) / 2, y: H - y2, size: S, font: tb });
+  });
+
+  // Page 2: certificate line, justified between left and right margins
+  const x0 = 101.3, x1 = 543.8, y = H - 326.9;
+  const W = (t, c, sup) => ({ t, c, sup });
+  const words = [
+    [W("done")], [W("by")],
+    ...name.split(/\s+/).map(w => [W(w, RED)]),
+    [W("(" + roll + ")", RED)],
+    [W("in")], [W("the")], [W("duration")], [W("of")],
+    [W("21"), W("th", null, true)], [W("to")], [W("26"), W("th", null, true)],
+    [W("SEPTEMBER")], [W("2026,")]
+  ];
+  let size = S;
+  const wordW = (w, sz) => w.reduce((a, r) => a + tr.widthOfTextAtSize(r.t, r.sup ? sz * 0.67 : sz), 0);
+  const total = sz => words.reduce((a, w) => a + wordW(w, sz), 0);
+  const n = words.length - 1;
+  const minNat = total(size) + n * tr.widthOfTextAtSize(" ", size) * 0.8;
+  if (minNat > x1 - x0) size = size * (x1 - x0) / minNat;
+  const gap = (x1 - x0 - total(size)) / n;
+  let x = x0;
+  words.forEach(w => {
+    w.forEach(r => {
+      const sz = r.sup ? size * 0.67 : size;
+      pg[1].drawText(r.t, { x, y, size: sz, font: tr, color: r.c ? rgb(...r.c) : rgb(0, 0, 0) });
+      x += tr.widthOfTextAtSize(r.t, sz);
+    });
+    x += gap;
+  });
+
+  return await doc.save();
+}
+
+$("go").addEventListener("click", async () => {
+  const name = $("name").value.trim().replace(/\s+/g, " ").toUpperCase();
+  const roll = $("roll").value.trim().replace(/\s+/g, "").toUpperCase();
+  if (!name || !roll){ setMsg("పేరు, roll number రెండూ ఇవ్వండి.", "err"); return; }
+  const btn = $("go"); btn.disabled = true; setMsg("PDF తయారవుతోంది…");
+  try {
+    const bytes = await build(name, roll);
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = roll + "_SEC_Document.pdf";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setMsg("PDF సిద్ధం! Download అవుతోంది.", "ok");
+  } catch (e) {
+    setMsg("Error: అక్షరాలు, అంకెలు మాత్రమే వాడండి. (" + (e && e.message || "unknown") + ")", "err");
+  } finally { btn.disabled = false; }
+});
+</script>
+</body>
+</html>
