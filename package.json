@@ -1,0 +1,23 @@
+{
+  "name": "soc_project",
+  "version": "1.0.0",
+  "description": "SOC Document Generator with Vercel Web Analytics",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Eswararjun23/soc_project.git"
+  },
+  "keywords": ["analytics", "vercel", "soc"],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Eswararjun23/soc_project/issues"
+  },
+  "homepage": "https://github.com/Eswararjun23/soc_project#readme",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
+}
